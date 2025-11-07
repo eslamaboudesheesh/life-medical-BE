@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import { UsersService } from './users/users.service';
 import { UserRole } from './users/schemas/user.schema';
 import mongoose from 'mongoose';
-
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   try {
     const mongoUri = process.env.MONGO_URI;
@@ -18,12 +18,32 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
     app.enableCors({
-      origin: '*', 
+      origin: '*',
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     });
 
+
+    // ✅ Swagger Setup
+    const config = new DocumentBuilder()
+      .setTitle('Life Medical API')
+      .setDescription('API documentation for Life Medical backend')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+
+
+
+
+
+    const documentFactory = () => SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, documentFactory);
+
+
+
     const usersService = app.get(UsersService);
     const usersCount = await usersService.countUsers();
+
+
 
     if (usersCount === 0) {
       console.log('🚀 No users found, seeding initial admin...');
@@ -45,6 +65,7 @@ async function bootstrap() {
     const port = process.env.PORT || 3000;
     await app.listen(port);
     console.log(`🚀 Server running on port ${port}`);
+    console.log(`📘 Swagger Docs available at http://localhost:${port}/api`);
   } catch (err) {
     console.error('❌ Error during app startup:', err);
   }
