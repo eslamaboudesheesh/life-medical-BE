@@ -9,7 +9,6 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
-import { SwaggerModule } from '@nestjs/swagger';
 
 @Module({
   imports: [
@@ -19,7 +18,6 @@ import { SwaggerModule } from '@nestjs/swagger';
     AuthModule,
     CategoriesModule,
     ProductsModule,
-    SwaggerModule
   ],
   controllers: [AppController],
   providers: [AppService],
