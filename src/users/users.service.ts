@@ -4,18 +4,23 @@ import { InjectModel } from '@nestjs/mongoose';
 import { User, UserDocument, UserRole } from 'src/users/schemas/user.schema';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import { CounterService } from 'src/common/counter/counter.service';
 
 
 
 @Injectable()
 export class UsersService {
     
-    constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>
+    constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+            private counterService: CounterService,
+
     ) { }
 
-    async createUser(name: string, email: string, password: string, role?: string) {
+    async createUser(name: string, email: string, password: string, role?: string ) {
+        const nextUserId = await this.counterService.getNextSequence('userId');
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new this.userModel({ name, email, password: hashedPassword, role });
+        const newUser = new this.userModel({ userId:nextUserId , name, email, password: hashedPassword, role });
         return newUser.save();
 
     }
@@ -26,8 +31,8 @@ export class UsersService {
 
 
 
-    async findById(id: string): Promise<UserDocument | null> {
-        const user = await this.userModel.findById(id);
+    async findById(userId: number): Promise<UserDocument | null> {
+        const user = await this.userModel.findOne({ userId });
         if (!user) throw new NotFoundException('User not found');
         return user;
     }
@@ -37,10 +42,18 @@ export class UsersService {
         return this.userModel.find({}, '-password'); // exclude passwords
     }
 
-    async updateUserRole(userId: string, role: UserRole) {
+    async updateUserRole(userId: number, role: UserRole) {
         return this.userModel.findByIdAndUpdate(userId, { role }, { new: true });
     }
 
+
+    async deleteUser(userId: number) {
+        const user = await this.userModel.findOneAndDelete({ userId });
+
+        if (!user) throw new NotFoundException('User not found');
+
+        return user;
+    }
 
     async countUsers(): Promise<number> {
         return this.userModel.countDocuments();

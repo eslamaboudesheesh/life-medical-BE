@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { IsNotEmpty, IsNumber, IsOptional, IsMongoId } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateProductDto {
@@ -80,10 +80,29 @@ export class CreateProductDto {
     @IsNumber()
     quantity?: number;
 
+
+    @ApiPropertyOptional({ example: false })
+    @IsOptional()
+    @IsBoolean()
+    isPublished?: boolean;
+
+    @ApiPropertyOptional({ example: 'https://cloudinary.com/image.jpg' })
+    @IsOptional()
+    imageUrl?: string;
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    gallery?: string[];
+
+
     @ApiProperty({
-        example: '6737aa2d3b12f9e0a8a2b4d1',
-        description: 'معرّف الفئة (Category ID)',
+        example: 0,
+        description: 'Category ID (starts from 0)',
     })
-    @IsMongoId()
-    category: string;
+    @IsNumber()
+    categoryId: number;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    minStock?: number;
 }

@@ -13,6 +13,9 @@ export enum UserRole {
 
 @Schema({  timestamps: true})
 export class User {
+    @Prop({ required: true, unique: true })
+    userId: number; 
+    
     @Prop({lowercase: true, type: String, required: true})
     name: string;
 

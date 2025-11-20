@@ -5,6 +5,10 @@ import { Category } from '../../categories/schemas/category.schema';
 
 @Schema({ timestamps: true })
 export class Product extends Document {
+
+  @Prop({ required: true })
+  productId: number; 
+  
   @Prop({ required: true })
   name: string;
 
@@ -26,8 +30,33 @@ export class Product extends Document {
   @Prop()
   quantity: number;
 
+  @Prop()
+  imageUrl: string;
+
+  @Prop([String])
+  gallery: string[];
+
+  @Prop({ type: Boolean, default: false })
+  isPublished: boolean;
+
   @Prop({ type: Types.ObjectId, ref: Category.name })
   category: Category;
+  
+  @Prop({ required: true, unique: true })
+  slug: string;
+
+  @Prop({ default: true })
+  inStock: boolean;
+
+  @Prop({ default: 0 })
+  remaining: number;
+
+  @Prop({ default: 5 })
+  minStock: number;
+
+  @Prop({ default: false })
+  lowStock: boolean;
+
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

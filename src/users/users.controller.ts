@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, Delete } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -29,6 +29,7 @@ export class UsersController {
           email: 'eslam@gmail.com',
           role: 'ADMIN',
           createdAt: '2025-11-07T21:10:00.000Z',
+          userId: 123
         },
         {
           _id: '6737ac2f6a52b42...',
@@ -36,6 +37,7 @@ export class UsersController {
           email: 'omar@gmail.com',
           role: 'EMPLOYEE',
           createdAt: '2025-11-07T21:15:00.000Z',
+          userId: 124
         },
       ],
     },
@@ -46,11 +48,11 @@ export class UsersController {
   }
 
   //  Update user role
-  @Patch(':id/role')
+  @Patch(':userId/role')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update a user role (Admin only)' })
   @ApiParam({
-    name: 'id',
+    name: 'userId',
     description: 'User ID',
     example: '6737ac2f6a52b41...',
   })
@@ -85,7 +87,13 @@ export class UsersController {
   })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 403, description: 'Forbidden. Only Admins can change roles.' })
-  updateUserRole(@Param('id') id: string, @Body() body: { role: UserRole }) {
-    return this.usersService.updateUserRole(id, body.role);
+  updateUserRole(@Param('userId') userId: number, @Body() body: { role: UserRole }) {
+    return this.usersService.updateUserRole(userId, body.role);
   }
+
+  @Delete(':userId')
+  deleteUser(@Param('userId') userId: number) {
+    return this.usersService.deleteUser(userId);
+  }
+
 }
