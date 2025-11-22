@@ -3,12 +3,26 @@ import { IsNotEmpty, IsNumber, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateProductDto {
-    @ApiProperty({
-        example: 'Panadol Extra',
-        description: 'اسم المنتج',
-    })
-    @IsNotEmpty()
-    name: string;
+ @ApiProperty({
+        type: 'object',
+        properties: {
+            ar: { type: 'string' },
+            en: { type: 'string' },
+        },
+    example: { ar: 'بنادول', en: 'Panadol' },
+    description: 'اسم المنتج بالعربي والإنجليزي',
+  })
+  name: { ar: string; en?: string };
+
+  @ApiPropertyOptional({
+    type: 'object',
+    properties: {
+      ar: { type: 'string' },
+      en: { type: 'string' },
+    },
+    example: { ar: 'مسكن قوي', en: 'Strong pain relief' },
+  })
+  description?: { ar?: string; en?: string };
 
     @ApiProperty({
         example: '1234567890',

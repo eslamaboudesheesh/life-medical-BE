@@ -10,8 +10,21 @@ export class Product extends Document {
   @Prop({ required: true })
   productId: number; 
   
-  @Prop({ required: true })
-  name: string;
+  @Prop({
+    type: {
+      ar: { type: String, required: true },
+      en: { type: String, required: false },
+    },
+  })
+  name: { ar: string; en?: string };
+
+  @Prop({
+    type: {
+      ar: { type: String, required: false },
+      en: { type: String, required: false },
+    },
+  })
+  description?: { ar?: string; en?: string };
 
   @Prop({ required: true, unique: true })
   barcode: string;

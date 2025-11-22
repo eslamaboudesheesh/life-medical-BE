@@ -101,7 +101,7 @@ export class ProductsService {
       remaining: quantity,
       minStock,
       lowStock: quantity <= minStock,
-      slug: slugify(dto.name, { lower: true, strict: true, trim: true }),
+      slug: slugify(dto.name.en ?? dto.name.ar, { lower: true, strict: true, trim: true }),
       category: category._id,
       brand: brandId, // ← ObjectId فقط
       purchasePriceUpdatedAt: new Date(),
@@ -172,7 +172,7 @@ export class ProductsService {
   
     if (dto.name) {
       product.name = dto.name;
-      product.slug = slugify(dto.name, {
+      product.slug = slugify(dto.name.en ?? dto.name.ar, {
         lower: true,
         strict: true,
         trim: true,
@@ -240,10 +240,12 @@ export class ProductsService {
     // SEARCH
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
+        { 'name.ar': { $regex: search, $options: 'i' } },
+        { 'name.en': { $regex: search, $options: 'i' } },
         { barcode: { $regex: search, $options: 'i' } },
       ];
     }
+
 
     // FILTER BY CATEGORY
     if (category && Types.ObjectId.isValid(category)) {
@@ -356,13 +358,15 @@ export class ProductsService {
     if (!original) throw new NotFoundException("Original product not found");
 
     const nextId = await this.counterService.getNextSequence("productId");
-
-    const newName = `${original.name} (copy)`;
+    const newName = {
+      ar: `${original.name.ar} (نسخة)`,
+      en: original.name.en ? `${original.name.en} (copy)` : undefined,
+    };
 
     const duplicated = new this.productModel({
       productId: nextId,
       name: newName,
-      slug: slugify(newName, { lower: true, strict: true }),
+      slug: slugify(newName.en ?? newName.ar, { lower: true, strict: true }),
       barcode: undefined, 
       purchasePrice: original.purchasePrice,
       pharmacyPrice: original.pharmacyPrice,
