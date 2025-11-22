@@ -2,6 +2,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Category } from '../../categories/schemas/category.schema';
+import { Brand } from 'src/brands/schema/brand.schema';
 
 @Schema({ timestamps: true })
 export class Product extends Document {
@@ -17,7 +18,8 @@ export class Product extends Document {
 
   @Prop({ required: true })
   purchasePrice: number;
-
+  @Prop({ type: Date, default: null })
+  purchasePriceUpdatedAt: Date;
   @Prop()
   pharmacyPrice?: number;
 
@@ -57,6 +59,10 @@ export class Product extends Document {
   @Prop({ default: false })
   lowStock: boolean;
 
+
+
+  @Prop({ type: Types.ObjectId, ref: Brand.name })
+  brand: Brand;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

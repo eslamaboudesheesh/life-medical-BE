@@ -1,12 +1,12 @@
 /* eslint-disable prettier/prettier */
-import { Controller, Post, Body, Get, Param, UseGuards, Query, UploadedFile, UseInterceptors, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, UseGuards, Query, UploadedFile, UseInterceptors, Patch, Delete } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../users/schemas/user.schema';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
 
@@ -81,6 +81,111 @@ export class ProductsController {
   @ApiOperation({ summary: 'Get product by slug (Marketplace)' })
   getBySlug(@Param('slug') slug: string) {
     return this.productsService.getBySlug(slug);
+  }
+
+
+  @Patch('bulk/publish')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Bulk publish products' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['67b8e1f6c3d2f1a2b4cd1234', '67b8e20dc3d2f1a2b4cd1235'],
+          description: 'List of product IDs to publish'
+        }
+      },
+      required: ['ids']
+    }
+  })
+  @ApiResponse({ status: 200, description: 'Products published successfully' })
+  bulkPublish(@Body('ids') ids: string[]) {
+    return this.productsService.bulkPublish(ids, true);
+  }
+  @Patch('bulk/unpublish')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Bulk unpublish products' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['67b8e1f6c3d2f1a2b4cd1234'],
+        }
+      },
+      required: ['ids']
+    }
+  })
+  @ApiResponse({ status: 200, description: 'Products unpublished successfully' })
+  bulkUnpublish(@Body('ids') ids: string[]) {
+    return this.productsService.bulkPublish(ids, false);
+  }
+
+  @Delete('bulk')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Bulk delete products' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['67b8e1f6c3d2f1a2b4cd1234'],
+        }
+      },
+      required: ['ids']
+    }
+  })
+  @ApiResponse({ status: 200, description: 'Products deleted successfully' })
+  bulkDelete(@Body('ids') ids: string[]) {
+    return this.productsService.bulkDelete(ids);
+  }
+
+
+  @Patch(':id/publish')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Publish single product' })
+  @ApiParam({ name: 'id', example: 101, description: 'productId' })
+  @ApiResponse({ status: 200, description: 'Product published successfully' })
+
+  publishOne(@Param('id') id: number) {
+    return this.productsService.updatePublishState(id, true);
+  }
+
+  @Patch(':id/unpublish')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Unpublish single product' })
+  @ApiParam({ name: 'id', example: 101 })
+  @ApiResponse({ status: 200, description: 'Product unpublished successfully' })
+
+  unpublishOne(@Param('id') id: number) {
+    return this.productsService.updatePublishState(id, false);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Delete a single product' })
+  @ApiParam({ name: 'id', example: '67b8e1f6c3d2f1a2b4cd1234' })
+  @ApiResponse({ status: 200, description: 'Product deleted successfully' })
+  deleteOne(@Param('id') id: string) {
+    return this.productsService.deleteProduct(id);
+  }
+
+
+  @Post(':id/duplicate')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Duplicate product' })
+  @ApiOperation({ summary: 'Duplicate product' })
+  @ApiParam({ name: 'id', example: '67b8e1f6c3d2f1a2b4cd1234' })
+  @ApiResponse({ status: 201, description: 'Product duplicated successfully' })
+  duplicate(@Param('id') id: string) {
+    return this.productsService.duplicateProduct(id);
   }
 
 }

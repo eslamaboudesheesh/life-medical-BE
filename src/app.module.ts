@@ -10,6 +10,7 @@ import { ConfigModule } from '@nestjs/config';
 import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
+import { BrandsModule } from './brands/brands.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
     AuthModule,
     CategoriesModule,
     ProductsModule,
+    BrandsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

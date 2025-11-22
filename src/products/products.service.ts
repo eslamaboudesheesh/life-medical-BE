@@ -8,6 +8,7 @@ import { CategoriesService } from '../categories/categories.service';
 import slugify from 'slugify';
 import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
 import { CounterService } from 'src/common/counter/counter.service';
+import { BrandsService } from 'src/brands/brands.service';
 
 const DEFAULT_RATES = {
   pharmacy: 10,
@@ -22,15 +23,20 @@ export class ProductsService {
     private categoriesService: CategoriesService,
     private cloudinaryService: CloudinaryService,
     private counterService: CounterService,
+    private brandsService: BrandsService,
 
   ) { }
 
   // ----------------------------------------------------------------
   // CREATE PRODUCT
   // ----------------------------------------------------------------
+
+
   async createProduct(dto: CreateProductDto, file?: Express.Multer.File) {
+
     const category = await this.categoriesService.findByCategoryId(dto.categoryId);
     if (!category) throw new NotFoundException('Category not found');
+
     const nextId = await this.counterService.getNextSequence('productId');
 
     let imageUrl = null;
@@ -38,6 +44,21 @@ export class ProductsService {
       const upload = await this.cloudinaryService.uploadImage(file);
       imageUrl = upload.secure_url;
     }
+
+    // ─────────────────────────────────────────────
+    // 1) HANDLE BRAND
+    // ─────────────────────────────────────────────
+    let brandId = null;
+
+    if (dto.brand) {
+      const brand = await this.brandsService.getById(dto.brand);
+      if (!brand) throw new NotFoundException('Brand not found');
+      brandId = brand._id;  //  ObjectId
+    }
+
+    // ─────────────────────────────────────────────
+    // 2) PRICE CALCULATIONS
+    // ─────────────────────────────────────────────
 
     const pharmacyPrice =
       dto.pharmacyPrice ??
@@ -57,10 +78,16 @@ export class ProductsService {
         (dto.purchasePrice * (1 + (dto.tradeRate ?? DEFAULT_RATES.trade) / 100)).toFixed(2),
       );
 
-    
+    // ─────────────────────────────────────────────
+    // 3) STOCK MANAGEMENT
+    // ─────────────────────────────────────────────
+
     const quantity = dto.quantity ?? 0;
     const minStock = dto.minStock ?? 5;
 
+    // ─────────────────────────────────────────────
+    // 4) CREATE PRODUCT
+    // ─────────────────────────────────────────────
 
     const product = new this.productModel({
       ...dto,
@@ -76,11 +103,15 @@ export class ProductsService {
       lowStock: quantity <= minStock,
       slug: slugify(dto.name, { lower: true, strict: true, trim: true }),
       category: category._id,
+      brand: brandId, // ← ObjectId فقط
+      purchasePriceUpdatedAt: new Date(),
     });
 
-
     const saved = await product.save();
-    return saved.populate('category', 'name categoryId');
+    return saved.populate([
+      { path: 'category', select: 'name categoryId' },
+      { path: 'brand', select: 'name brandId' },
+    ]);
   }
 
   // ----------------------------------------------------------------
@@ -103,8 +134,11 @@ export class ProductsService {
     }
 
 
- 
-    if (dto.purchasePrice) {
+    if (dto.purchasePrice !== undefined) {
+      if (dto.purchasePrice !== product.purchasePrice) {
+        product.purchasePrice = dto.purchasePrice;
+        product.purchasePriceUpdatedAt = new Date();
+      }
       product.purchasePrice = dto.purchasePrice;
 
       product.pharmacyPrice =
@@ -179,9 +213,18 @@ export class ProductsService {
       product.gallery = dto.gallery;
     }
    
-
+    if (dto.brand) {
+      const brand = await this.brandsService.getById(dto.brand);
+      if (!brand) throw new NotFoundException('Brand not found');
+      product.brand = brand._id as any;
+    }
+    
+ 
     await product.save();
-    return product.populate('category', 'name categoryId');
+    return product.populate([
+      { path: 'category', select: 'name categoryId' },
+      { path: 'brand', select: 'name brandId imageUrl' },
+    ]);
   }
 
 
@@ -189,7 +232,7 @@ export class ProductsService {
   // GET ALL PRODUCTS
   // ----------------------------------------------------------------
   async getAllProducts(query: any) {
-    const { page = 1, limit = 10, search, category, order = 'desc', isPublished } = query;
+    const { page = 1, limit = 10, search, category, order = 'desc', isPublished ,brand } = query;
 
     const skip = (page - 1) * limit;
     const filter: any = {};
@@ -206,7 +249,9 @@ export class ProductsService {
     if (category && Types.ObjectId.isValid(category)) {
       filter.category = new Types.ObjectId(category);
     }
-
+    if (brand && Types.ObjectId.isValid(brand)) {
+      filter.brand = brand;
+    }
     // FILTER BY PUBLISH STATE
     if (isPublished !== undefined) {
       filter.isPublished = isPublished === 'true';
@@ -220,7 +265,10 @@ export class ProductsService {
 
     const products = await this.productModel
       .find(filter)
-      .populate('category', 'name categoryId')
+      .populate([
+        { path: 'category', select: 'name categoryId' },
+        { path: 'brand', select: 'name brandId' },
+      ])
       .sort(sortQuery)
       .skip(Number(skip))
       .limit(Number(limit));
@@ -268,6 +316,77 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
 
     return product;
+  }
+
+  async bulkPublish(ids: string[], state: boolean) {
+    return this.productModel.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isPublished: state } },
+    );
+  }
+
+  async bulkDelete(ids: string[]) {
+    return this.productModel.deleteMany({
+      _id: { $in: ids },
+    });
+  }
+
+
+  async deleteProduct(id: string) {
+    const product = await this.productModel.findById(id);
+    if (!product) throw new NotFoundException('Product not found');
+
+    // Delete Cloudinary image
+    if (product.imageUrl) {
+      try {
+        const publicId = product.imageUrl.split('/').pop().split('.')[0];
+        await this.cloudinaryService.deleteImage(publicId);
+      } catch (e) {
+        console.log("Delete image error:", e.message);
+      }
+    }
+
+    return this.productModel.findByIdAndDelete(id);
+  }
+
+
+  async duplicateProduct(id: string) {
+    const original = await this.productModel.findById(id);
+
+    if (!original) throw new NotFoundException("Original product not found");
+
+    const nextId = await this.counterService.getNextSequence("productId");
+
+    const newName = `${original.name} (copy)`;
+
+    const duplicated = new this.productModel({
+      productId: nextId,
+      name: newName,
+      slug: slugify(newName, { lower: true, strict: true }),
+      barcode: undefined, 
+      purchasePrice: original.purchasePrice,
+      pharmacyPrice: original.pharmacyPrice,
+      publicPrice: original.publicPrice,
+      tradePrice: original.tradePrice,
+      quantity: 0, 
+      inStock: false,
+      remaining: 0,
+
+      imageUrl: original.imageUrl,
+      gallery: original.gallery,
+      isPublished: false,
+
+      brand: original.brand,
+      category: original.category,
+
+      minStock: original.minStock,
+      lowStock: false,
+
+      purchasePriceUpdatedAt: new Date(),
+    });
+
+    const saved = await duplicated.save();
+    return saved.populate('category brand');
   }
 
 }
