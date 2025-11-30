@@ -1,32 +1,43 @@
 /* eslint-disable prettier/prettier */
-
-import { Prop, Schema, SchemaFactory  } from '@nestjs/mongoose';
-
-
-export type UserDocument = User & Document;
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+import * as bcrypt from 'bcrypt';
 
 export enum UserRole {
+    OWNER = 'owner',
     ADMIN = 'admin',
     MANAGER = 'manager',
     EMPLOYEE = 'employee',
+    SUPER_ADMIN = 'super_admin',
 }
 
-@Schema({  timestamps: true})
-export class User {
-    @Prop({ required: true, unique: true })
-    userId: number; 
-    
-    @Prop({lowercase: true, type: String, required: true})
+@Schema({ timestamps: true })
+export class User extends Document {
+
+    @Prop({ required: true })
     name: string;
 
-    @Prop({lowercase: true, type: String, required: true})
+    @Prop({ required: true, unique: true, lowercase: true })
     email: string;
 
-    @Prop({ type: String, required: true })
+    @Prop({ required: true })
     password: string;
 
-    @Prop({ enum: UserRole, default: UserRole.EMPLOYEE })
+    @Prop({
+        type: String,
+        enum: UserRole,
+        default: UserRole.EMPLOYEE,
+    })
     role: UserRole;
+
+    @Prop({ type: Types.ObjectId, ref: 'Company', required: true })
+    company: Types.ObjectId;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+UserSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+});

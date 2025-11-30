@@ -9,21 +9,25 @@ export class CloudinaryService {
     @Inject('CLOUDINARY') private cloudinaryClient: typeof cloudinary,
   ) {}
 
-  uploadImage(file: Express.Multer.File): Promise<UploadApiResponse | UploadApiErrorResponse> {
+  uploadImage(file: Express.Multer.File, companyId: string , type: 'products' | 'categories' | 'brands'): Promise<UploadApiResponse | UploadApiErrorResponse> {
     return new Promise((resolve, reject) => {
       const upload = this.cloudinaryClient.uploader.upload_stream(
-        { folder: 'products' },
+        {
+          folder: `life-medical/${companyId}/${type}`,
+        },
         (error, result) => {
           if (error) return reject(error);
           resolve(result);
-        },
+        }
       );
 
       Readable.from(file.buffer).pipe(upload);
     });
-    }
+  }
+
     
-    async deleteImage(publicId: string) {
-        return cloudinary.uploader.destroy(publicId);
-    }
+  async deleteImage(publicId: string): Promise<UploadApiResponse | UploadApiErrorResponse> {
+    return this.cloudinaryClient.uploader.destroy(publicId);
+  }
+
 }

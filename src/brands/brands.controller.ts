@@ -7,110 +7,86 @@ import {
   Param,
   Post,
   Put,
+  Req,
   UploadedFile,
   UseInterceptors,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
 import { BrandsService } from './brands.service';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CreateBrandDto } from './dto/brand.dto';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 @ApiTags('Brands')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('brands')
 export class BrandsController {
   constructor(
     private brandsService: BrandsService,
     private cloudinary: CloudinaryService,
-  ) {}
+  ) { }
+
   @Post()
   @UseInterceptors(FileInterceptor('image'))
-  @ApiOperation({ summary: 'Create a new brand with optional image' })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', example: 'Pfizer' },
-        image: {
-          type: 'string',
-          format: 'binary',
-          description: 'Brand image (optional)',
-        },
-      },
-      required: ['name'],
-    },
-  })
-  @ApiResponse({ status: 201, description: 'Brand created successfully' })
+  @ApiOperation({ summary: 'Create brand (Arabic + English + Optional Image)' })
   async create(
+    @Req() req,
     @UploadedFile() file: Express.Multer.File,
-    @Body('name') name: string,
+    @Body() dto: CreateBrandDto,
   ) {
     let imageUrl = null;
-    if (file) imageUrl = (await this.cloudinary.uploadImage(file)).secure_url;
+    let publicId = null;
 
-    return this.brandsService.create(name, imageUrl);
+    if (file) {
+      const upload = await this.cloudinary.uploadImage(file, req.user.companyId, 'brands');
+      imageUrl = upload.secure_url;
+      publicId = upload.public_id;
+    }
+
+    return this.brandsService.create(dto, req.user.companyId, imageUrl, publicId);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all brands' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of all brands',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          _id: { type: 'string', example: '67bf9d33f4032e...' },
-          name: { type: 'string', example: 'Pfizer' },
-          imageUrl: { type: 'string', example: 'https://cloudinary/...jpg' },
-          brandId: { type: 'number', example: 3 },
-        },
-      },
-    },
-  })
-  getAll() {
-    return this.brandsService.getAll();
+  @ApiOperation({ summary: 'Get all brands for company' })
+  getAll(@Req() req) {
+    return this.brandsService.getAll(req.user.companyId);
   }
 
-  @Put(':id')
+  @Put(':brandId')
   @UseInterceptors(FileInterceptor('image'))
-  @ApiOperation({ summary: 'Update brand name and/or image' })
   @ApiConsumes('multipart/form-data')
-  @ApiParam({ name: 'id', example: '67bf9d33f4032e...' })
+  @ApiOperation({ summary: 'Update brand' })
+  async update(
+    @Param('brandId') brandId: number,
+    @Req() req,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: Partial<CreateBrandDto>,
+  ) {
+    return this.brandsService.update(brandId, req.user.companyId, dto, file);
+  }
+
+  @Delete(':brandId')
+  @ApiOperation({ summary: 'Delete brand safely (only if unused)' })
+  async delete(@Param('brandId') brandId: number, @Req() req) {
+    return this.brandsService.delete(brandId, req.user.companyId);
+  }
+
+  @Delete('bulk')
+  @ApiOperation({ summary: 'Bulk delete brands safely' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        name: { type: 'string', example: 'Novartis' },
-        image: {
-          type: 'string',
-          format: 'binary',
-          description: 'Brand image (optional)',
-        },
+        ids: { type: 'array', items: { type: 'number' } },
       },
+      required: ['ids'],
     },
   })
-  @ApiResponse({ status: 200, description: 'Brand updated successfully' })
- async update(
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Body('name') name?: string,
-  ) {
-    const data: any = {};
-    if (name) data.name = name;
-    if (file)
-      data.imageUrl = (await this.cloudinary.uploadImage(file)).secure_url;
-
-    return this.brandsService.update(id, data);
-  }
-
-  @Delete(':id')
-  @ApiOperation({ summary: 'Delete a brand' })
-  @ApiParam({ name: 'id', example: '67bf9d33f4032e...' })
-  @ApiResponse({ status: 200, description: 'Brand deleted successfully' })
-  delete(@Param('id') id: string) {
-    return this.brandsService.delete(id);
+  async bulkDelete(@Body('ids') ids: number[], @Req() req) {
+    return this.brandsService.bulkDelete(ids, req.user.companyId);
   }
 }

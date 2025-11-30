@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -11,6 +11,10 @@ import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { BrandsModule } from './brands/brands.module';
+import { CompanyModule } from './company/company.module';
+import { TenantMiddleware } from './common/middleware/tenant.middleware';
+import { BillingModule } from './billing/billing.module';
+import { PaymobModule } from './paymob/paymob.module';
 
 @Module({
   imports: [
@@ -22,8 +26,17 @@ import { BrandsModule } from './brands/brands.module';
     CategoriesModule,
     ProductsModule,
     BrandsModule,
+    CompanyModule,
+    BillingModule,
+    PaymobModule
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(TenantMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}

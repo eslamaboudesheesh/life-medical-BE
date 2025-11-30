@@ -3,6 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Category } from '../../categories/schemas/category.schema';
 import { Brand } from 'src/brands/schema/brand.schema';
+import { Company } from 'src/company/schemas/company.schema';
 
 @Schema({ timestamps: true })
 export class Product extends Document {
@@ -76,6 +77,13 @@ export class Product extends Document {
 
   @Prop({ type: Types.ObjectId, ref: Brand.name })
   brand: Brand;
+
+  @Prop({ type: Types.ObjectId, ref: Company.name, required: true })
+  company: Company;
+
+  @Prop()
+  imagePublicId: string;
+
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

@@ -17,15 +17,17 @@ async function bootstrap() {
   const adminExists = await usersService.findByEmail(adminEmail);
 
   if (adminExists) {
-    console.log(`⚠️ Admin already exists: ${adminEmail}`);
+    console.log(`⚠️ Super Admin already exists: ${adminEmail}`);
   } else {
-    await usersService.createUser(
-      adminName,
-      adminEmail,
-      adminPassword,
-      UserRole.ADMIN,
-    );
-    console.log(`✅ Admin created successfully: ${adminEmail}`);
+    await usersService.createUser({
+      name: adminName,
+      email: adminEmail,
+      password: adminPassword,
+      role: UserRole.SUPER_ADMIN,  // 💥 NEW ROLE
+      company: null               // 💥 NOT BELONGING TO ANY COMPANY
+    });
+
+    console.log(`✅ Super Admin created successfully: ${adminEmail}`);
   }
 
   await app.close();

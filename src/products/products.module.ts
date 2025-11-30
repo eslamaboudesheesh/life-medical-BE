@@ -20,5 +20,6 @@ import { BrandsService } from 'src/brands/brands.service';
   ],
   controllers: [ProductsController],
   providers: [ProductsService, BrandsService],
+  exports: [ProductsService , MongooseModule],
 })
 export class ProductsModule {}

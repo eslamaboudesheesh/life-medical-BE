@@ -9,6 +9,9 @@ import {
   Param,
   UploadedFile,
   UseInterceptors,
+  Req,
+  Query,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CategoriesService } from './categories.service';
@@ -16,8 +19,9 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UserRole } from '../users/schemas/user.schema';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CloudinaryService } from 'src/common/cloudinary/cloudinary.service';
+import { CreateCategoryDto } from './dto/category.dto';
 
 @ApiBearerAuth()
 @ApiTags('Categories')
@@ -27,52 +31,74 @@ export class CategoriesController {
   constructor(
     private categoriesService: CategoriesService,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
-  // CREATE -----------------------------------------
   @Post()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.OWNER)
   @UseInterceptors(FileInterceptor('image'))
-  @ApiOperation({ summary: 'Create new category with optional image' })
   async createCategory(
     @UploadedFile() file: Express.Multer.File,
-    @Body('name') name: string,
+    @Body() dto: CreateCategoryDto,
+    @Req() req: any,
   ) {
     let imageUrl = null;
+    let publicId = null;
 
     if (file) {
-      const upload = await this.cloudinaryService.uploadImage(file);
+      const upload = await this.cloudinaryService.uploadImage(file, req.user.companyId , 'categories');
       imageUrl = upload.secure_url;
+      publicId = upload.public_id;
     }
 
-    return this.categoriesService.createCategory(name, imageUrl);
+    return this.categoriesService.createCategory(
+      dto,
+      req.user.companyId,
+      imageUrl,
+      publicId,
+    );
   }
 
-  // GET ALL -----------------------------------------
   @Get()
-  @ApiOperation({ summary: 'Get all categories' })
-  getAll() {
-    return this.categoriesService.getAll();
+  getAll(
+    @Req() req: any,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+  ) {
+    return this.categoriesService.getAll(
+      req.user.companyId,
+      Number(page),
+      Number(limit),
+      search,
+    );
   }
 
-  // UPDATE -----------------------------------------
   @Put(':categoryId')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.OWNER)
   @UseInterceptors(FileInterceptor('image'))
-  @ApiOperation({ summary: 'Update category name or image' })
   async updateCategory(
     @Param('categoryId') categoryId: number,
     @UploadedFile() file: Express.Multer.File,
-    @Body('name') name?: string,
+    @Body() dto: Partial<CreateCategoryDto>,
+    @Req() req: any,
   ) {
-    const updateData: any = {};
+    return this.categoriesService.updateCategory(
+      categoryId,
+      req.user.companyId,
+      dto,
+      file,
+    );
+  }
 
-    if (name) updateData.name = name;
-    if (file) {
-      const upload = await this.cloudinaryService.uploadImage(file);
-      updateData.imageUrl = upload.secure_url;
-    }
+  @Delete('bulk')
+  @Roles(UserRole.ADMIN, UserRole.OWNER)
+  bulkDelete(@Body('ids') ids: number[], @Req() req: any) {
+    return this.categoriesService.bulkDelete(ids, req.user.companyId);
+  }
 
-    return this.categoriesService.updateCategory(categoryId, updateData);
+  @Delete(':categoryId')
+  @Roles(UserRole.ADMIN, UserRole.OWNER)
+  deleteOne(@Param('categoryId') categoryId: number, @Req() req: any) {
+    return this.categoriesService.deleteCategory(categoryId, req.user.companyId);
   }
 }

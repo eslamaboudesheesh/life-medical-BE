@@ -32,17 +32,19 @@ export class ProductsService {
   // ----------------------------------------------------------------
 
 
-  async createProduct(dto: CreateProductDto, file?: Express.Multer.File) {
+  async createProduct(dto: CreateProductDto, user: any, file?: Express.Multer.File) {
 
-    const category = await this.categoriesService.findByCategoryId(dto.categoryId);
+    const category = await this.categoriesService.findByCategoryId(dto.categoryId , user.companyId);
     if (!category) throw new NotFoundException('Category not found');
 
     const nextId = await this.counterService.getNextSequence('productId');
 
     let imageUrl = null;
+    let uploadId = null;
     if (file) {
-      const upload = await this.cloudinaryService.uploadImage(file);
+      const upload = await this.cloudinaryService.uploadImage(file , user.companyId , 'products');
       imageUrl = upload.secure_url;
+      uploadId = upload.public_id;
     }
 
     // ─────────────────────────────────────────────
@@ -51,7 +53,7 @@ export class ProductsService {
     let brandId = null;
 
     if (dto.brand) {
-      const brand = await this.brandsService.getById(dto.brand);
+      const brand = await this.brandsService.getByBrandId(dto.brand , user.companyId);
       if (!brand) throw new NotFoundException('Brand not found');
       brandId = brand._id;  //  ObjectId
     }
@@ -105,6 +107,9 @@ export class ProductsService {
       category: category._id,
       brand: brandId, // ← ObjectId فقط
       purchasePriceUpdatedAt: new Date(),
+      company: user.companyId,
+      imagePublicId: uploadId,
+
     });
 
     const saved = await product.save();
@@ -120,14 +125,15 @@ export class ProductsService {
   async updateProduct(
     productId: number,
     dto: Partial<CreateProductDto>,
-    file?: Express.Multer.File,
+    user: any,
+    file?: Express.Multer.File, 
   ) {
-    const product = await this.productModel.findOne({ productId });
+    const product = await this.productModel.findOne({ productId , company: user.companyId });
     if (!product) throw new NotFoundException('Product not found');
 
 
     if (dto.categoryId !== undefined) {
-      const categoryExists = await this.categoriesService.findByCategoryId(dto.categoryId);
+      const categoryExists = await this.categoriesService.findByCategoryId(dto.categoryId , user.companyId);
       if (!categoryExists) throw new NotFoundException('Category not found');
       // Cast to any to satisfy the Product.category typing which may expect a populated Category object
       product.category = categoryExists._id as any;
@@ -204,7 +210,7 @@ export class ProductsService {
         }
       }
 
-      const upload = await this.cloudinaryService.uploadImage(file);
+      const upload = await this.cloudinaryService.uploadImage(file , user.companyId , 'products');
       product.imageUrl = upload.secure_url;
     }
 
@@ -214,7 +220,7 @@ export class ProductsService {
     }
    
     if (dto.brand) {
-      const brand = await this.brandsService.getById(dto.brand);
+      const brand = await this.brandsService.getByBrandId(dto.brand, user.companyId);
       if (!brand) throw new NotFoundException('Brand not found');
       product.brand = brand._id as any;
     }
@@ -231,11 +237,11 @@ export class ProductsService {
   // ----------------------------------------------------------------
   // GET ALL PRODUCTS
   // ----------------------------------------------------------------
-  async getAllProducts(query: any) {
+  async getAllProducts(query: any, user: any) {
     const { page = 1, limit = 10, search, category, order = 'desc', isPublished ,brand } = query;
 
     const skip = (page - 1) * limit;
-    const filter: any = {};
+    const filter: any = { company: user.companyId };
 
     // SEARCH
     if (search) {
@@ -287,9 +293,9 @@ export class ProductsService {
   // ----------------------------------------------------------------
   // GET PRODUCT BY ID
   // ----------------------------------------------------------------
-  async getById(productId: number) {
+  async getById(productId: number , user: any) {
     const product = await this.productModel
-      .findOne({productId})
+      .findOne({productId , company: user.companyId })
       .populate('category', 'name categoryId');
 
     if (!product) throw new NotFoundException('Product not found');
@@ -297,8 +303,8 @@ export class ProductsService {
     return product;
   }
 
-  async updatePublishState(productId: number, state: boolean) {
-    const product = await this.productModel.findOne({productId});
+  async updatePublishState(productId: number, state: boolean , user: any) {
+    const product = await this.productModel.findOne({productId , company: user.companyId });
 
     if (!product) throw new NotFoundException('Product not found');
 
@@ -310,9 +316,9 @@ export class ProductsService {
   }
 
 
-  async getBySlug(slug: string) {
+  async getBySlug(slug: string , user: any) {
     const product = await this.productModel
-      .findOne({ slug })
+      .findOne({ slug  , company: user.companyId })
       .populate('category', 'name categoryId');
 
     if (!product) throw new NotFoundException('Product not found');
@@ -320,40 +326,43 @@ export class ProductsService {
     return product;
   }
 
-  async bulkPublish(ids: string[], state: boolean) {
+  async bulkPublish(ids: string[], state: boolean , user: any) {
     return this.productModel.updateMany(
-      { _id: { $in: ids } },
-      { $set: { isPublished: state } },
+      { _id: { $in: ids }, company: user.companyId },
+      { $set: { isPublished: state }
+     },
+      
     );
   }
 
-  async bulkDelete(ids: string[]) {
+  async bulkDelete(ids: string[] , user: any) {
     return this.productModel.deleteMany({
       _id: { $in: ids },
+      company: user.companyId,
     });
   }
 
 
-  async deleteProduct(id: string) {
-    const product = await this.productModel.findById(id);
+  async deleteProduct(id: string ,  user: any) {
+    const product = await this.productModel.findOne({ _id: id, company: user.companyId });
     if (!product) throw new NotFoundException('Product not found');
 
     // Delete Cloudinary image
-    if (product.imageUrl) {
+    if (product.imageUrl && product.imagePublicId) {
       try {
-        const publicId = product.imageUrl.split('/').pop().split('.')[0];
+        const publicId = product.imagePublicId;
         await this.cloudinaryService.deleteImage(publicId);
       } catch (e) {
         console.log("Delete image error:", e.message);
       }
     }
 
-    return this.productModel.findByIdAndDelete(id);
+    return this.productModel.findOneAndDelete({ _id: id, company: user.companyId });
   }
 
 
-  async duplicateProduct(id: string) {
-    const original = await this.productModel.findById(id);
+  async duplicateProduct(id: string, user: any) {
+    const original = await this.productModel.findOne({ _id: id, company: user.companyId });
 
     if (!original) throw new NotFoundException("Original product not found");
 
@@ -387,6 +396,7 @@ export class ProductsService {
       lowStock: false,
 
       purchasePriceUpdatedAt: new Date(),
+      company: user.companyId,
     });
 
     const saved = await duplicated.save();
